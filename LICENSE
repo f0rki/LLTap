@@ -200,3 +200,10 @@
    See the License for the specific language governing permissions and
    limitations under the License.
 
+
+The following pieces of software have additional or alternate copyrights,
+licenses, and/or restrictions:
+
+Program             Directory
+-------             ---------
+LLTap LLVM Pass     llvmpass/

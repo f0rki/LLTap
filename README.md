@@ -95,18 +95,18 @@ LLTap supports three different hook types: pre, post and replace.
   * `LLTAP_PRE_HOOK` - is executed before the call and receives pointers to the
       parameters of the original call, so that it can modify the parameters,
       e.g.
-      ```
-      int example(int a, char* b);
-      void example_prehook(int* a, char** b);
-      ```
+```
+int example(int a, char* b);
+void example_prehook(int* a, char** b);
+```
   * `LLTAP_REPLACE_HOOK` - is executed instead of the original function and
       must have the same prototype as the function it replaces.
   * `LLTAP_POST_HOOK` - is exectued after the call and receives a pointer to
       the return value as first parameter. Additionally the parameters of the
       original call are passed by value, e.g.
-      ```
-      void example_posthook(int* ret, int a, char* b);
-      ```
+```
+void example_posthook(int* ret, int a, char* b);
+```
 
 ## tracergen
 

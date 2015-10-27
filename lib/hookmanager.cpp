@@ -25,6 +25,13 @@ using namespace std;
 
 namespace LLTap {
 
+  enum class LogLevel {
+    SILENT,
+    ERROR,
+    WARN,
+    DEBUG,
+  };
+
   struct hook_registry {
     LLTapHook pre_hook = nullptr;
     LLTapHook replace_hook = nullptr;
@@ -50,6 +57,8 @@ namespace LLTap {
     private:
       map<void*, hook_registry>* hooks = nullptr;
       map<string, void*>* functions = nullptr;
+
+      LogLevel loglevel = LogLevel::ERROR;
   };
 
   HookManager hookmanager;
@@ -61,12 +70,17 @@ namespace LLTap {
 
 bool LLTap::HookManager::add_hook(char* target, LLTapHook hook, LLTapHookType type) {
 
-  fprintf(stderr,
-      "[LLTAP-RT] Adding hook for target %s (%p) type %d\n",
-      target, (void*)hook, type);
+  if (loglevel >= LogLevel::DEBUG) {
+    fprintf(stderr,
+        "[LLTAP-RT] Adding hook for target %s (%p) type %d\n",
+        target, (void*)hook, type);
+  }
 
   if (functions == nullptr) {
-    fprintf(stderr, "[LLTAP-RT] No hook targets registered\n");
+    if (loglevel >= LogLevel::WARN) {
+      fprintf(stderr, "[LLTAP-RT] No hook targets registered\n");
+    }
+    return false;
   }
 
   if (hooks == nullptr) {
@@ -88,7 +102,9 @@ bool LLTap::HookManager::add_hook(char* target, LLTapHook hook, LLTapHookType ty
       (*hooks)[targetaddr].post_hook = hook;
       break;
     default:
-      fprintf(stderr, "[LLTAP-RT] Invalid hook type\n");
+      if (loglevel >= LogLevel::ERROR) {
+        fprintf(stderr, "[LLTAP-RT] Invalid hook type\n");
+      }
   }
 
   return true;
@@ -96,7 +112,9 @@ bool LLTap::HookManager::add_hook(char* target, LLTapHook hook, LLTapHookType ty
 
 LLTapHook LLTap::HookManager::get_hook(void* target, LLTapHookType type) {
   if (hooks == nullptr) {
-    fprintf(stderr, "[LLTAP-RT] No hooks registered at all\n");
+    if (loglevel >= LogLevel::WARN) {
+      fprintf(stderr, "[LLTAP-RT] No hooks registered at all\n");
+    }
     return nullptr;
   }
 
@@ -109,11 +127,15 @@ LLTapHook LLTap::HookManager::get_hook(void* target, LLTapHookType type) {
       case LLTapHookType::LLTAP_REPLACE_HOOK:
         return (*hooks)[target].replace_hook;
       default:
-        fprintf(stderr, "[LLTAP-RT] Invalid hook type\n");
+        if (loglevel >= LogLevel::ERROR) {
+          fprintf(stderr, "[LLTAP-RT] Invalid hook type\n");
+        }
         return nullptr;
     }
   } else {
-    fprintf(stderr, "[LLTAP-RT] No hooks found for (%p)\n", target);
+    if (loglevel >= LogLevel::WARN) {
+      fprintf(stderr, "[LLTAP-RT] No hooks found for (%p)\n", target);
+    }
     return nullptr;
   }
 }
@@ -121,7 +143,9 @@ LLTapHook LLTap::HookManager::get_hook(void* target, LLTapHookType type) {
 int LLTap::HookManager::get_hook_bitmap(void* target) {
   int hook_bm = 0;
   if (hooks == nullptr) {
-    fprintf(stderr, "[LLTAP-RT] No hooks registered at all\n");
+    if (loglevel >= LogLevel::DEBUG) {
+      fprintf(stderr, "[LLTAP-RT] No hooks registered at all\n");
+    }
     return 0;
   }
 
@@ -163,9 +187,11 @@ void LLTap::HookManager::remove_hook(char* name, LLTapHookType type)
         (*hooks)[target].replace_hook = nullptr;
         break;
       default:
-        fprintf(stderr,
-            "[LLTAP-RT] Failed to remove hook on '%s' - Invalid hook type (%d)\n",
-            name, type);
+        if (loglevel >= LogLevel::ERROR) {
+          fprintf(stderr,
+              "[LLTAP-RT] Failed to remove hook on '%s' - Invalid hook type (%d)\n",
+              name, type);
+        }
         return;
     }
   }
@@ -177,7 +203,9 @@ void LLTap::HookManager::add_target(char* name, void* target) {
     functions = new map<string, void*>();
   }
 
-  fprintf(stderr, "[LLTAP-RT] Registering target %s for addr (%p)\n", name, target);
+  if (loglevel >= LogLevel::DEBUG) {
+    fprintf(stderr, "[LLTAP-RT] Registering target %s for addr (%p)\n", name, target);
+  }
   string n(name);
   (*functions)[n] = target;
 }

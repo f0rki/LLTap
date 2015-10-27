@@ -23,7 +23,7 @@ set -x
 clang $OPTS -I../include -c $2
 clang $OPTS -S $SRC.c
 clang $OPTS -c $SRC.c
-opt -time-passes -verify -verify-each \
+opt -verify -verify-each \
     -load $LLTAPSO \
     -LLTapInst \
     "$SRC.bc" > "$SRC.inst.bc"

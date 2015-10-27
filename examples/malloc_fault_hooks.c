@@ -5,11 +5,11 @@
 #include <stdio.h>
 
 int countdown = 3;
-bool passthrough = false;
 
 void* malloc_replace_hook(size_t size) {
-  if (! passthrough && countdown == 0) {
-    passthrough = true;
+  if (countdown == 0) {
+    // remove the hook, further calls to malloc are not hooked anymore
+    lltap_deregister_hook("malloc", LLTAP_REPLACE_HOOK);
     return NULL;
   } else {
     countdown--;

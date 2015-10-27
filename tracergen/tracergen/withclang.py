@@ -22,6 +22,7 @@ from __future__ import print_function
 import sys
 import os
 import datetime
+import logging
 
 try:
     import clang.cindex  # NOQA
@@ -43,6 +44,10 @@ except ImportError as e:
     clang.cindex.Config.set_library_file(LIBCLANG)
 
 from tracergen.templates import gen_hook_function_code, gen_hook_file  # NOQA
+
+
+log = logging.getLogger()
+#log = logging.getLogger(__name__)
 
 
 CFLAGS = ['-x', 'c', '-std', 'gnu99']
@@ -321,8 +326,8 @@ class HookFunction:
 
 def generate_hooks(node, tu):
     """for a given declaration (node) create pre and post hook functions"""
-    print("Generating hooks for function",
-          node.result_type.spelling, node.displayname)
+    log.debug("Generating hooks for function %s %s", node.result_type.spelling,
+              node.displayname)
     d = []
     for t in ("pre", "post"):
         hook = HookFunction(node, t)
@@ -349,16 +354,26 @@ def main(argv):
         print("Invalid number of arguments")
         print("Usage:", argv[0], "path/to/new/module", "path/to/header.h")
         return
-    index = clang.cindex.Index.create()
-    print("parsing ", argv[2])
-    tu = index.parse(argv[2])
-    if not tu:
-        print("failed to parse", argv[2])
-    module = os.path.basename(argv[2])
-    with open(argv[1] + ".c", "w") as f:
-        includes = ["liblltap.h"]
-        globalvars = []
-        hooks = []
+    fname = argv[1] if argv[-2:] == ".c" else argv[1] + ".c"
+    with open(fname, "w") as f:
+        s = generate_hooks_from_headers([argv[2]])
+        f.write(s)
+    return 0
+
+
+def generate_hooks_from_headers(headerfiles, module=None):
+    includes = ["liblltap.h"]
+    globalvars = []
+    hooks = []
+    for headerfile in headerfiles:
+        if not os.path.exists(headerfile):
+            log.error("Failed to open headerfile '%s'", headerfile)
+            continue
+        index = clang.cindex.Index.create()
+        log.debug("parsing %s", headerfile)
+        tu = index.parse(headerfile)
+        if not tu:
+            log.error("failed to parse '%s'", headerfile)
         hooknames = {"pre": {}, "post": {}, "replace": {}}
         for node in find_decls(tu.cursor):
             for h in generate_hooks(node, tu):
@@ -368,16 +383,25 @@ def main(argv):
                     globalvars.append(h.get_globalvars())
                     hooks.append(h)
                 else:
-                    print("warning: skipping second hook for", h.target)
-        now = datetime.datetime.now().isoformat()
-        s = gen_hook_file(dict(header_files=argv[2],
-                               date=now,
-                               includes=set(includes),
-                               global_variables=globalvars,
-                               hooks=hooks,
-                               module=module))
-        print(s)
-        f.write(str(s))
+                    log.warn("skipping second hook for '{}'".format(h.target))
+    if module is None:
+        if len(headerfiles) == 1:
+            module = os.path.basename(headerfiles[0])
+        else:
+            module = "lltap-tracergen"
+    now = datetime.datetime.now().isoformat()
+    s = gen_hook_file(dict(header_files=headerfiles,
+                           date=now,
+                           includes=set(includes),
+                           global_variables=globalvars,
+                           hooks=hooks,
+                           module=module))
+    return s
+
 
 if __name__ == "__main__":
-    main(sys.argv)
+    try:
+        sys.exit(main(sys.argv))
+    except Exception as e:
+        print(str(e), file=sys.stderr)
+        sys.exit(1)

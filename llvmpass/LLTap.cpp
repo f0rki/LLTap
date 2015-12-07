@@ -46,9 +46,10 @@
 
 #include "llvm/Pass.h"
 
+#include "llvm/Transforms/Utils/ModuleUtils.h"
+
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Debug.h"
-
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/CommandLine.h"
 
@@ -77,8 +78,6 @@ namespace LLTap {
     POST_HOOK = 4,
   };
 
-
-  typedef std::vector<std::pair<llvm::Constant*, int> > CtorList;
 
   /**
    * then run this to instrument
@@ -110,8 +109,6 @@ namespace LLTap {
       Regex* noInstrumentCallsRe = nullptr;
       void initializeInstConfig();
 
-      CtorList globalCtors;
-
       bool instConfigInitialized = false;
       bool shouldBeInstrumented(Function& F);
       bool runOnFunction(Function& F);
@@ -121,10 +118,7 @@ namespace LLTap {
 
       string mangleFunctionArgs(CallSite* CS);
 
-      //bool createTrampoline(StringRef funcname, CallSite* inst, Module* M);
-
-      void addToGlobalCtors(Function* fn);
-      void addGlobalCtorsToModule(Module* M);
+      void addToGlobalCtors(Module& M, Function* fn);
 
       string getHookFunctionNameFor(Function* origFunc, CallSite* CS=nullptr);
       Function* getHookFunctionFor(CallSite* CS, Module& M);
@@ -268,59 +262,14 @@ bool LLTap::InstrumentationPass::runOnModule(Module &M) {
     runOnFunction(F);
   }
 
-  addGlobalCtorsToModule(&M);
-
   //DEBUG(dbgs() << "creating the following module" << M << "\n");
 
   return true;
 }
 
-void LLTap::InstrumentationPass::addGlobalCtorsToModule(Module* M) {
 
-  FunctionType* CtorFTy = FunctionType::get(
-      Type::getVoidTy(M->getContext()),
-      vector<Type*>(),
-      false);
-  Type *CtorPFTy = PointerType::getUnqual(CtorFTy);
-
-  // Get the type of a ctor entry, { i32, void ()* }.
-  StructType* CtorStructTy = StructType::get(
-      Type::getInt32Ty(M->getContext()),
-      PointerType::getUnqual(CtorFTy),
-      NULL);
-
-
-  // Construct the constructor and destructor arrays.
-  vector<Constant*> Ctors;
-  for (CtorList::const_iterator I = globalCtors.begin(), E = globalCtors.end(); I != E; ++I) {
-    vector<Constant*> S;
-    S.push_back(ConstantInt::get(Type::getInt32Ty(M->getContext()),
-          I->second, false));
-    S.push_back(ConstantExpr::getBitCast(I->first, CtorPFTy));
-    Ctors.push_back(ConstantStruct::get(CtorStructTy, S));
-  }
-
-  if (!Ctors.empty()) {
-    GlobalVariable* ctors = M->getGlobalVariable(LLVM_GLOBAL_CTORS_VARNAME);
-    if (ctors != NULL) {
-      errs() << "oh shit global ctors already exists...\n";
-
-      // FIXME: append to global ctors if already exists
-
-    } else {
-      // create a new global variable
-      ArrayType *AT = ArrayType::get(CtorStructTy, Ctors.size());
-      new GlobalVariable(*M, AT, false,
-          GlobalValue::AppendingLinkage,
-          ConstantArray::get(AT, Ctors),
-          LLVM_GLOBAL_CTORS_VARNAME);
-    }
-  }
-}
-
-
-void LLTap::InstrumentationPass::addToGlobalCtors(Function* fn) {
-  globalCtors.push_back(make_pair(fn, DEFAULT_CTOR_PRIORITY));
+void LLTap::InstrumentationPass::addToGlobalCtors(Module& M, Function* fn) {
+  appendToGlobalCtors(M, fn, DEFAULT_CTOR_PRIORITY);
 }
 
 
@@ -348,7 +297,7 @@ Function* LLTap::InstrumentationPass::getOrAddInitializerToModule(Module& M) {
 
     //DEBUG(dbgs() << "created function:" << *BB << "\n");
 
-    addToGlobalCtors(initFn);
+    addToGlobalCtors(M, initFn);
   }
 
   return initFn;

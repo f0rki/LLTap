@@ -1,7 +1,23 @@
 #!/bin/bash
 set -eu -o pipefail
 
-OPTS="-Wall -pedantic -emit-llvm"
+ADD_CFLAGS=""
+LINKLIBS="-llltaprt"
+if [[ "$#" -lt 2 ]]; then
+    echo "usage: $0 source.c hooks.c [cflags] [-llinkstuff]"
+    exit 1
+fi
+if [[ "$#" -eq 3 ]]; then
+    ADD_CFLAGS="$3"
+fi
+if [[ "$#" -eq 4 ]]; then
+    LINKLIBS="$LINKLIBS $4"
+fi
+
+# adapt to use llvm built somewhere else, e.g. debug builds
+#export PATH=/path/to/src/llvm/build/bin/:$PATH
+
+OPTS="-Wall -pedantic -emit-llvm $ADD_CFLAGS"
 LLTAPSO="../build/llvmpass/libLLTap.so"
 LLTAPRTSO="../build/lib/liblltaprt.so"
 
@@ -9,18 +25,17 @@ SRC=$(basename -s ".c" $1)
 HOOKSRC=$(basename -s ".c" $2)
 
 BCFILES="$SRC.inst.bc $HOOKSRC.bc"
-BCOUT="$SRC.exec.bc"
-OBJOUT="$SRC.exec.o"
 BINOUT="$SRC.exec.bin"
 
-ulimit -c unlimited
-
 echo "Using"
+which opt
 opt --version
+which clang
 clang --version
 
+ulimit -c unlimited
 set -x
-clang $OPTS -I../include -c $2
+clang $OPTS -I../include -c "$HOOKSRC.c"
 clang $OPTS -S $SRC.c
 clang $OPTS -c $SRC.c
 opt -verify -verify-each \
@@ -28,13 +43,13 @@ opt -verify -verify-each \
     -LLTapInst \
     "$SRC.bc" > "$SRC.inst.bc"
 llvm-dis "$SRC.inst.bc"
-llvm-link $BCFILES -o "$BCOUT"
-llc -filetype=obj "$BCOUT" -o "$OBJOUT"
-g++ -L ../build/lib/ "$OBJOUT" -o "$BINOUT" -llltaprt
+clang $ADD_CFLAGS -L ../build/lib/ $BCFILES -o "$BINOUT" $LINKLIBS
+
 #clang -Xclang -load -Xclang "$LLTAPSO" -LLTapInst \
 #    -L "../build/lib/" \
 #    -I "../include/" \
 #    "$1" "$2" \
 #    -o "$BINOUT" \
-#    -llltaprt
-env LD_LIBRARY_PATH=../build/lib "./$BINOUT"
+#    $LINKLIBS
+
+env LLTAP_LOGLEVEL=DEBUG LD_LIBRARY_PATH=../build/lib "./$BINOUT"

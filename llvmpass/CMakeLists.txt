@@ -1,3 +1,5 @@
+include_directories(${LLVM_INCLUDE_DIRS})
+
 # for building out of tree
 add_library(LLTap MODULE LLTap.cpp)
 

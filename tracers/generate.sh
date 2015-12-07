@@ -1,4 +1,10 @@
 #!/bin/bash
+set -e
+
+# to find llvm-config
+#export PATH=/path/to/src/llvm/build/bin/:$PATH
+# added to python path
+#export PY_LIBCLANG=/path/to/src/llvm/tools/clang/bindings/python
 
 listdir="$(pwd)/"
 

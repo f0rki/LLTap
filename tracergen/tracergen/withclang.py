@@ -33,13 +33,13 @@ except ImportError as e:
         print("Set a PY_LIBCLANG environment var containing the path to the"
               "python libclang bindings inside the clang/llvm source tree.",
               "Make sure that PATH is configured such that llvm-config is",
-              "the same version as the libclang python bindings",
+              "the same version as the libclang python bindings.",
               file=sys.stderr, sep="\n")
     sys.path.append(llsrc)
     import clang.cindex  # NOQA
     from clang.cindex import CursorKind, TypeKind  # NOQA
     import subprocess
-    libdir = subprocess.check_output("llvm-config --libdir")
+    libdir = subprocess.check_output(["llvm-config", "--libdir"]).strip()
     LIBCLANG = os.path.join(libdir, "libclang.so")
     clang.cindex.Config.set_library_file(LIBCLANG)
 

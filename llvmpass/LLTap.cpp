@@ -151,7 +151,7 @@ cl::opt<InstrumentationMode> InstMode(cl::desc("Choose what calls LLTap instrume
       clEnumVal(inst_i,
         "Instrument only 'internal' calls, which are defined in the same module."),
       clEnumVal(inst_e,
-        "Instrument only 'external' calls, which are only declared."),
+        "Instrument only 'external' calls, which are only declared in the module."),
       clEnumVal(inst_ie,
         "Instrument all types of calls"),
       clEnumValEnd),
@@ -700,9 +700,9 @@ bool LLTap::InstrumentationPass::createHookingCode(Function* origFunc, Function*
     IRBuilder<> init(init_bb);
 
     size_t i = 0;
-    for (Argument* arg = F->arg_begin(); arg != F->arg_end(); arg = arg->getNextNode()) {
+    for (auto arg = F->arg_begin(); arg != F->arg_end(); arg++) {
       params[i] = entry.CreateAlloca(arg->getType(), nullptr, "arg");
-      init.CreateStore(arg, params[i]);
+      init.CreateStore(&*arg, params[i]);
       //DEBUG(dbgs() << "alloca for param " << i << " " << *params[i] << "\n");
       i++;
     }

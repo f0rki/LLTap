@@ -174,9 +174,13 @@ cl::opt<string> NoInstrumentFunctionsRegexRaw("no-inst-funcs-re",
     cl::cat(LLTapCat));
 
 
-char LLTap::InstrumentationPass::ID = 0;
-static RegisterPass<LLTap::InstrumentationPass> IP("LLTapInst", "LLTap instrumentation pass");
+cl::opt<string> HookNamespace("hook-namespace",
+    cl::desc("hook targets are registered using this namespace."),
+    cl::cat(LLTapCat));
 
+
+char LLTap::InstrumentationPass::ID = 0x42;
+static RegisterPass<LLTap::InstrumentationPass> IP("LLTapInst", "LLTap instrumentation pass");
 
 
 string LLTap::InstrumentationPass::mangleFunctionArgs(CallSite* CS) {
@@ -338,7 +342,12 @@ void LLTap::InstrumentationPass::addCallTarget(Function* calledFn, Module &M) {
     return;
   }
 
-  string fname = calledFn->getName();
+  string fname = "";
+  if (! HookNamespace.empty()) {
+    fname += HookNamespace + "_";
+  }
+  fname += calledFn->getName();
+
   string varname = "__lltap_fname_";
   varname.append(fname);
 

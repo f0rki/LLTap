@@ -54,11 +54,31 @@ namespace LLTap {
           delete functions;
       }
 
+      HookManager() {
+        check_loglevel();
+      }
+
     private:
       map<void*, hook_registry>* hooks = nullptr;
       map<string, void*>* functions = nullptr;
 
       LogLevel loglevel = LogLevel::ERROR;
+
+      void check_loglevel() {
+        char* x = getenv("LLTAP_LOGLEVEL");
+        if (x != nullptr) {
+          string r(x);
+          if (r == "SILENT") {
+            loglevel = LogLevel::SILENT;
+          } else if (r == "ERROR") {
+            loglevel = LogLevel::ERROR;
+          } else if (r == "WARN") {
+            loglevel = LogLevel::WARN;
+          } else if ( r == "DEBUG") {
+            loglevel = LogLevel::DEBUG;
+          }
+        }
+      }
   };
 
   HookManager hookmanager;

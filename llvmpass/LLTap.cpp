@@ -468,8 +468,13 @@ bool LLTap::InstrumentationPass::runOnFunction(Function &F) {
   }
 
   DEBUG(dbgs() << "got " << F.getNumUses() << " uses\n");
+  SmallVector<User*, 16> worklist;
   for (User* user : F.users()) {
     DEBUG(dbgs() << "found user " << *user << "\n");
+    worklist.push_back(user);
+  }
+
+  for (User* user : worklist) {
     if (isa<CallInst>(user)) {
       CallSite CI(user);
       //CallsFound++;

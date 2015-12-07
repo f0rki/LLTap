@@ -108,13 +108,22 @@ void example_prehook(int* a, char** b);
 void example_posthook(int* ret, int a, char* b);
 ```
 
-## tracergen
+## Automatic Generation of API Tracers
 
-The genlibtracer.py script can be used to generate tracing hooks given a C
-header files. This can be used to create a tool similar to ltrace. To generate
-tracing hooks for stdio.h, execute:
+`tracergen/lltaptracergen` is a python script can be used to generate tracing 
+hooks given one ore more C header files. This can be used to create a tool 
+similar to ltrace. To generate tracing hooks for stdio.h, execute:
 
-    ./genlibtracer.py ./stdio /usr/include/stdio.h
+    ./lltaptracergen -o stdio.c -m stdio /usr/include/stdio.h
 
 This produces a C file, that contains LLTap hooks, which print the function
 name, arguments and the return value.
+
+You will need the python libclang bindings for this tool to work. At the time of
+writing they are only included in the clang source distribution, so you might 
+need to set some environment variables so that python can import it:
+
+    # to find llvm-config
+    export PATH=/path/to/src/llvm/build/bin/:$PATH
+    # added to python path
+    export PY_LIBCLANG=/path/to/src/llvm/tools/clang/bindings/python

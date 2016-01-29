@@ -29,3 +29,6 @@
 
 # python stuff
 *.pyc
+
+# build folder
+build/

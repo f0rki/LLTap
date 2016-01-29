@@ -52,4 +52,5 @@ clang $ADD_CFLAGS -L ../build/lib/ $BCFILES -o "$BINOUT" $LINKLIBS
 #    -o "$BINOUT" \
 #    $LINKLIBS
 
+echo "Executing instrumented binary $BINOUT"
 env LLTAP_LOGLEVEL=DEBUG LD_LIBRARY_PATH=../build/lib "./$BINOUT"

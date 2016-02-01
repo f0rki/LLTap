@@ -32,6 +32,7 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/TinyPtrVector.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringSet.h"
 
 #include "llvm/IR/Module.h"
@@ -103,6 +104,8 @@ namespace LLTap {
       const string LLVM_GLOBAL_CTORS_VARNAME = "llvm.global_ctors";
       const int DEFAULT_CTOR_PRIORITY = 0;
 
+      SmallPtrSet<Function*, 100> lltapHookFunctions;
+
       StringSet<> instrumentCallsTo;
       StringSet<> noInstrumentCallsTo;
       Regex* instrumentCallsRe = nullptr;
@@ -112,6 +115,7 @@ namespace LLTap {
       bool instConfigInitialized = false;
       bool shouldBeInstrumented(Function& F);
       bool runOnFunction(Function& F);
+      bool isUseInLLTapHook(User* user);
 
       bool instrumentCall(CallSite* inst, Module& M);
       bool instrumentUse(User* inst, Module& M);
@@ -373,6 +377,19 @@ void LLTap::InstrumentationPass::addCallTarget(Function* calledFn, Module &M) {
 
 }
 
+bool LLTap::InstrumentationPass::isUseInLLTapHook(User* user) {
+  if (Instruction* inst = dyn_cast<Instruction>(user)) {
+    DEBUG(dbgs() << "user" << *user << "is inside a lltap generated function: skipping\n");
+    return lltapHookFunctions.count(inst->getParent()->getParent()) == 1;
+  }
+
+  return true;
+}
+
+
+/**
+ * Parse cli args
+ */
 void LLTap::InstrumentationPass::initializeInstConfig() {
 
   DEBUG(dbgs() << "Initializing instrumentation configuration\n");
@@ -404,10 +421,19 @@ void LLTap::InstrumentationPass::initializeInstConfig() {
   instConfigInitialized = true;
 }
 
+
+/**
+ * Check whether the given Function matches the instrumentation mode and regexes.
+ *
+ */
 bool LLTap::InstrumentationPass::shouldBeInstrumented(Function& F) {
 
   // skip all lltap functions
   if (F.getName().find("lltap") != string::npos) {
+    return false;
+  }
+
+  if (lltapHookFunctions.count(&F) == 1) {
     return false;
   }
 
@@ -484,18 +510,20 @@ bool LLTap::InstrumentationPass::runOnFunction(Function &F) {
   }
 
   for (User* user : worklist) {
-    if (isa<CallInst>(user)) {
-      CallSite CI(user);
-      //CallsFound++;
-      changed |= instrumentCall(&CI, *(F.getParent()));
-    } else if (! DoNotInstrumentUses) {
-      if (F.isVarArg()) {
-        errs() << "Warning: cannot replace function pointer to varargs function ("
-          << F.getName() << ")\n";
-      } else {
-        changed |= instrumentUse(user, *F.getParent());
+    if (! isUseInLLTapHook(user)) {
+      if (isa<CallInst>(user)) {
+        CallSite CI(user);
+        //CallsFound++;
+        changed |= instrumentCall(&CI, *(F.getParent()));
+      } else if (! DoNotInstrumentUses) {
+        if (F.isVarArg()) {
+          errs() << "Warning: cannot replace function pointer to varargs function ("
+            << F.getName() << ")\n";
+        } else {
+          changed |= instrumentUse(user, *F.getParent());
+        }
+        //UsesFound++;
       }
-      //UsesFound++;
     }
   }
 
@@ -614,10 +642,17 @@ Function* LLTap::InstrumentationPass::createHookFunction(StringRef name, CallSit
   Function* hookFn = Function::Create(FT, Function::ExternalLinkage, name, &M);
   createHookingCode(origFunc, hookFn, M);
 
+  // add to set of lltap generated functions
+  lltapHookFunctions.insert(hookFn);
+
   return hookFn;
 }
 
 
+/**
+ * Create a hook function, which replaces the original function in the original call.
+ * see \ref createHookingCode
+ */
 Function* LLTap::InstrumentationPass::createHookFunction(StringRef name, Function* origFunc, Module& M) {
 
   std::vector<Type*> ftargs;
@@ -630,12 +665,17 @@ Function* LLTap::InstrumentationPass::createHookFunction(StringRef name, Functio
   Function* hookFn = Function::Create(FT, Function::ExternalLinkage, name, &M);
   createHookingCode(origFunc, hookFn, M);
 
+  // add to set of lltap generated functions
+  lltapHookFunctions.insert(hookFn);
+
   return hookFn;
 }
 
 
-
-
+/**
+ * Generate the code that allocates space for the parameters of the original call and queries the
+ * LLTap runtime for the enabled hooks and calls these with the respective parameters.
+ */
 bool LLTap::InstrumentationPass::createHookingCode(Function* origFunc, Function* F, Module& M) {
 
   FunctionType* origFT = origFunc->getFunctionType();

@@ -20,6 +20,9 @@
 #include <map>
 #include <list>
 #include <cstdio>
+#include <mutex>
+#include <thread>
+
 
 using namespace std;
 
@@ -62,6 +65,8 @@ namespace LLTap {
       map<void*, hook_registry>* hooks = nullptr;
       map<string, void*>* functions = nullptr;
 
+      mutex hm_mutex;
+
       LogLevel loglevel = LogLevel::ERROR;
 
       void check_loglevel() {
@@ -89,6 +94,7 @@ namespace LLTap {
  */
 
 bool LLTap::HookManager::add_hook(char* target, LLTapHook hook, LLTapHookType type) {
+  lock_guard<std::mutex> lock(hm_mutex);
 
   if (loglevel >= LogLevel::DEBUG) {
     fprintf(stderr,
@@ -131,6 +137,8 @@ bool LLTap::HookManager::add_hook(char* target, LLTapHook hook, LLTapHookType ty
 }
 
 LLTapHook LLTap::HookManager::get_hook(void* target, LLTapHookType type) {
+  lock_guard<std::mutex> lock(hm_mutex);
+
   if (hooks == nullptr) {
     if (loglevel >= LogLevel::WARN) {
       fprintf(stderr, "[LLTAP-RT] No hooks registered at all\n");
@@ -161,6 +169,8 @@ LLTapHook LLTap::HookManager::get_hook(void* target, LLTapHookType type) {
 }
 
 int LLTap::HookManager::get_hook_bitmap(void* target) {
+  lock_guard<std::mutex> lock(hm_mutex);
+
   int hook_bm = 0;
   if (hooks == nullptr) {
     if (loglevel >= LogLevel::DEBUG) {
@@ -185,8 +195,9 @@ int LLTap::HookManager::get_hook_bitmap(void* target) {
   return hook_bm;
 }
 
-void LLTap::HookManager::remove_hook(char* name, LLTapHookType type)
-{
+void LLTap::HookManager::remove_hook(char* name, LLTapHookType type) {
+  lock_guard<std::mutex> lock(hm_mutex);
+
   if (hooks == nullptr) {
     return;
   }
@@ -219,6 +230,8 @@ void LLTap::HookManager::remove_hook(char* name, LLTapHookType type)
 }
 
 void LLTap::HookManager::add_target(char* name, void* target) {
+  lock_guard<std::mutex> lock(hm_mutex);
+
   if (functions == nullptr) {
     functions = new map<string, void*>();
   }

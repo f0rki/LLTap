@@ -39,19 +39,29 @@ void* thread_two(void* arg)
 
 int main()
 {
-  pthread_t t1;
-  int r = pthread_create(&t1, NULL, thread_one, NULL);
+  puts("Starting T0");
+  pthread_t t0;
+  int r = pthread_create(&t0, NULL, thread_one, NULL);
   if (r != 0) {
-    errx(r, "Failed to start thread: %s", strerror(r));
+    err(r, "Failed to start thread: %s", strerror(r));
   }
+  puts("Joining T0");
+  pthread_join(t0, NULL);
+
+  puts("Starting T1");
+  pthread_t t1;
+  r = pthread_create(&t1, NULL, thread_two, NULL);
+  if (r != 0) {
+    err(r, "Failed to start thread: %s", strerror(r));
+  }
+  puts("Joining T1");
   pthread_join(t1, NULL);
 
-  pthread_t t2;
-  r = pthread_create(&t2, NULL, thread_one, NULL);
-  if (r != 0) {
-    errx(r, "Failed to start thread: %s", strerror(r));
+  if (pthread_equal(t1, t0) != 0) {
+    puts("For some reason t0 == t1");
+    return 1;
   }
-  pthread_join(t2, NULL);
 
+  puts("Bye");
   return 0;
 }
